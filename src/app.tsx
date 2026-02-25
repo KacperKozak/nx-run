@@ -3,6 +3,14 @@ import { Box, Text, useInput, useApp, useStdout } from "ink";
 import TextInput from "ink-text-input";
 import type { NxTarget } from "./types.ts";
 
+function splitProject(name: string): { prefix: string; short: string } {
+  const slash = name.indexOf("/");
+  if (slash !== -1 && slash < name.length - 1) {
+    return { prefix: name.slice(0, slash + 1), short: name.slice(slash + 1) };
+  }
+  return { prefix: "", short: name };
+}
+
 const COMMANDS = [
   { name: "reset", description: "Clear cache and history for this workspace" },
   { name: "nuke", description: "Remove all caches from all projects" },
@@ -16,9 +24,10 @@ interface AppProps {
   onSelect: (commands: string[]) => void;
   onCommand: (cmd: string) => void;
   syncPromise?: Promise<void> | null;
+  isLoading?: boolean;
 }
 
-export default function App({ targets, history, searcher, onSelect, onCommand, syncPromise }: AppProps) {
+export default function App({ targets, history, searcher, onSelect, onCommand, syncPromise, isLoading }: AppProps) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [query, setQuery] = useState("");
@@ -65,8 +74,8 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
   const activeList: NxTarget[] = isCommandMode ? [] : isSearching ? results : historyTargets;
   const listCount = isCommandMode ? filteredCommands.length : activeList.length;
 
-  // input(1) + separator(1) + footer(1) + queue section
-  const queueOverhead = queue.length > 0 ? queue.length + 2 : 0;
+  // input(1) + separator(1) + footer(1) + queue section (border top/bottom + title + items)
+  const queueOverhead = queue.length > 0 ? queue.length + 3 : 0;
   const fixedRows = 3 + queueOverhead;
   const maxVisible = Math.max(3, termHeight - fixedRows);
 
@@ -153,7 +162,8 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
     setQuery(value);
   };
 
-  const showEmptyHint = !isSearching && !isCommandMode && historyTargets.length === 0;
+  const showLoadingMessage = isLoading && activeList.length === 0;
+  const showEmptyHint = !showLoadingMessage && !isSearching && !isCommandMode && historyTargets.length === 0;
 
   // Visible slice of the list
   const visibleTargets = activeList.slice(clampedOffset, clampedOffset + maxVisible);
@@ -170,13 +180,31 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
         {isSyncing && <Text dimColor>syncing...</Text>}
       </Box>
       <Box flexShrink={0}>
-        <Text dimColor>  {"─".repeat(40)}</Text>
+        <Text dimColor>  {"─".repeat(Math.max(1, (stdout?.columns ?? 40) - 2))}</Text>
       </Box>
 
       {/* List area — fills available space */}
       <Box flexDirection="column" flexGrow={1}>
+        {showLoadingMessage && (
+          <Box flexDirection="column" paddingLeft={2} paddingTop={1}>
+            {query.length > 0 ? (
+              <>
+                <Text color="yellow">Hang tight... finishing the first scan</Text>
+                <Text dimColor>Your search is saved, results will pop up any moment</Text>
+              </>
+            ) : (
+              <>
+                <Text color="yellow">Scanning your workspace...</Text>
+                <Text dimColor>First time takes a sec, after that it's instant</Text>
+              </>
+            )}
+          </Box>
+        )}
         {showEmptyHint && (
-          <Text dimColor>  No recent runs yet</Text>
+          <Box paddingLeft={2} paddingTop={1} flexDirection="column">
+            <Text color="gray">Nothing here yet</Text>
+            <Text dimColor>Start typing to find targets, or run something and it'll show up here</Text>
+          </Box>
         )}
 
         {isCommandMode && visibleCommands.length > 0 &&
@@ -205,6 +233,8 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
             const realIndex = clampedOffset + i;
             const isSelected = realIndex === cursor;
             const inQueue = queue.some((q) => q.command === item.command);
+            const { prefix, short } = splitProject(item.project);
+            const padLen = pad - item.project.length;
             return (
               <Text key={item.command}>
                 {isSelected ? (
@@ -212,8 +242,12 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
                 ) : (
                   <Text>    </Text>
                 )}
+                {prefix && <Text dimColor>{prefix}</Text>}
                 <Text color={isSelected ? "cyan" : undefined} dimColor={inQueue}>
-                  {item.project.padEnd(pad)}{item.target}
+                  {short}{" ".repeat(padLen)}
+                </Text>
+                <Text color={isSelected ? "cyan" : undefined} dimColor={inQueue}>
+                  {item.target}
                 </Text>
                 {inQueue && <Text color="yellow"> {"\u2713"}</Text>}
               </Text>
@@ -224,19 +258,34 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
 
       {/* Queue — pinned above footer */}
       {queue.length > 0 && (
-        <Box flexDirection="column" flexShrink={0} marginTop={1}>
-          <Text>  Queue [{queue.length}]:</Text>
-          {queue.map((item, i) => (
-            <Text key={item.command}>
-              <Text dimColor>    {i + 1}. {item.command}</Text>
-            </Text>
-          ))}
+        <Box
+          flexDirection="column"
+          flexShrink={0}
+          marginLeft={1}
+          marginRight={1}
+          borderStyle="round"
+          borderColor="#ff8800"
+          paddingLeft={1}
+          paddingRight={1}
+        >
+          <Text color="#ff8800">Queue [{queue.length}]</Text>
+          {queue.map((item, i) => {
+            const { prefix, short } = splitProject(item.project);
+            return (
+              <Text key={item.command}>
+                <Text color="gray">{i + 1}. </Text>
+                {prefix && <Text dimColor>{prefix}</Text>}
+                <Text>{short}</Text>
+                <Text color="gray">:{item.target}</Text>
+              </Text>
+            );
+          })}
         </Box>
       )}
 
       {/* Footer — pinned bottom */}
       <Box flexShrink={0}>
-        <Text dimColor>  tab select {"\u00b7"} enter run {"\u00b7"} / commands {"\u00b7"} esc quit</Text>
+        <Text dimColor>  [tab] select {"\u00b7"} [enter] run {"\u00b7"} [/] commands {"\u00b7"} [esc] quit</Text>
       </Box>
     </Box>
   );
