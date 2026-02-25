@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { Box, Text, useInput, useApp, useStdout } from "ink";
 import TextInput from "ink-text-input";
 import type { NxTarget } from "./types.ts";
@@ -23,25 +23,21 @@ interface AppProps {
   searcher: (term: string) => NxTarget[];
   onSelect: (commands: string[]) => void;
   onCommand: (cmd: string) => void;
-  syncPromise?: Promise<void> | null;
+  onSync: () => void;
+  onReset: () => void;
+  isSyncing?: boolean;
   isLoading?: boolean;
 }
 
-export default function App({ targets, history, searcher, onSelect, onCommand, syncPromise, isLoading }: AppProps) {
+export default function App({ targets, history, searcher, onSelect, onCommand, onSync, onReset, isSyncing, isLoading }: AppProps) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [queue, setQueue] = useState<NxTarget[]>([]);
-  const [isSyncing, setIsSyncing] = useState(!!syncPromise);
 
   const termHeight = stdout?.rows ?? 24;
-
-  useEffect(() => {
-    if (!syncPromise) return;
-    syncPromise.then(() => setIsSyncing(false), () => setIsSyncing(false));
-  }, [syncPromise]);
 
   const historyTargets = useMemo(() => {
     return history
@@ -93,7 +89,15 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
   const clampedOffset = Math.min(scrollOffset, maxOffset);
 
   useInput((input, key) => {
-    if (key.escape || (input === "c" && key.ctrl)) {
+    if (key.escape) {
+      if (query.length > 0) {
+        setQuery("");
+      } else {
+        exit();
+      }
+      return;
+    }
+    if (input === "c" && key.ctrl) {
       exit();
       return;
     }
@@ -122,7 +126,17 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
     if (key.return) {
       if (isCommandMode) {
         const cmd = filteredCommands[cursor];
-        if (cmd) onCommand(cmd.name);
+        if (cmd) {
+          if (cmd.name === "sync") {
+            onSync();
+            setQuery("");
+          } else if (cmd.name === "reset") {
+            onReset();
+            setQuery("");
+          } else {
+            onCommand(cmd.name);
+          }
+        }
       } else if (queue.length > 0) {
         onSelect(queue.map((q) => q.command));
       } else if (activeList[cursor]) {
@@ -145,17 +159,6 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
       return;
     }
 
-    // Ctrl+Backspace / Cmd+Backspace: clear entire input
-    if (key.backspace && (key.ctrl || key.meta)) {
-      setQuery("");
-      return;
-    }
-
-    // Backspace on empty input pops queue
-    if ((key.backspace || key.delete) && query === "" && queue.length > 0) {
-      setQueue((prev) => prev.slice(0, -1));
-      return;
-    }
   });
 
   const handleQueryChange = (value: string) => {
@@ -285,7 +288,7 @@ export default function App({ targets, history, searcher, onSelect, onCommand, s
 
       {/* Footer — pinned bottom */}
       <Box flexShrink={0}>
-        <Text dimColor>  [tab] select {"\u00b7"} [enter] run {"\u00b7"} [/] commands {"\u00b7"} [esc] quit</Text>
+        <Text dimColor>  [tab] select {"\u00b7"} [enter] run {"\u00b7"} [/] commands {"\u00b7"} [esc] {query.length > 0 ? "clear" : "quit"}</Text>
       </Box>
     </Box>
   );

@@ -28,15 +28,16 @@ const nx = getNxBin(root);
 const cached = await loadCache(root);
 const initialTargets: NxTarget[] = cached ?? [];
 
-let syncPromise: Promise<void> | null = null;
+let syncPromise: Promise<NxTarget[]> | null = null;
 let initialScanPromise: Promise<NxTarget[]> | null = null;
 
 if (cached) {
-  // Background rescan — fire and forget, result used on next invocation
+  // Background rescan — update targets when done
   syncPromise = scanWorkspace(nx).then((fresh) => {
     saveCache(root, fresh);
     const validCommands = new Set(fresh.map((t) => t.command));
     pruneHistory(root, validCommands);
+    return fresh;
   });
 } else {
   // No cache — scan in background, UI shows immediately
@@ -55,10 +56,13 @@ interface AppLoaderProps {
 
 function AppLoader({ onSelect, onCommand }: AppLoaderProps) {
   const [targets, setTargets] = useState(initialTargets);
+  const [historyState, setHistoryState] = useState(history);
   const [isLoading, setIsLoading] = useState(!!initialScanPromise);
+  const [isSyncing, setIsSyncing] = useState(!!syncPromise);
 
   const searcher = useMemo(() => createSearcher(targets), [targets]);
 
+  // Initial scan (no cache path)
   useEffect(() => {
     if (!initialScanPromise) return;
     initialScanPromise.then(
@@ -74,14 +78,60 @@ function AppLoader({ onSelect, onCommand }: AppLoaderProps) {
     );
   }, []);
 
+  // Background resync (cached path)
+  useEffect(() => {
+    if (!syncPromise) return;
+    syncPromise.then(
+      (fresh) => {
+        setTargets(fresh);
+        setHistoryState(loadHistory(root!));
+        setIsSyncing(false);
+      },
+      () => setIsSyncing(false),
+    );
+  }, []);
+
+  const handleSync = () => {
+    setIsSyncing(true);
+    scanWorkspace(nx).then(
+      (fresh) => {
+        saveCache(root!, fresh);
+        const validCommands = new Set(fresh.map((t) => t.command));
+        pruneHistory(root!, validCommands);
+        setTargets(fresh);
+        setHistoryState(loadHistory(root!));
+        setIsSyncing(false);
+      },
+      () => setIsSyncing(false),
+    );
+  };
+
+  const handleReset = () => {
+    deleteCache(root!);
+    clearHistory(root!);
+    setTargets([]);
+    setHistoryState([]);
+    setIsLoading(true);
+    scanWorkspace(nx).then(
+      (fresh) => {
+        saveCache(root!, fresh);
+        setTargets(fresh);
+        setIsLoading(false);
+      },
+      () => setIsLoading(false),
+    );
+  };
+
   return React.createElement(App, {
     targets,
-    history,
+    history: historyState,
     searcher,
-    syncPromise,
     isLoading,
+    isSyncing,
     onSelect,
     onCommand,
+    onSync: handleSync,
+    onReset: handleReset,
   });
 }
 
@@ -93,27 +143,15 @@ const selected = await new Promise<string[]>((resolve) => {
         app.unmount();
         resolve(commands);
       },
-      onCommand: async (cmd: string) => {
+      onCommand: (cmd: string) => {
         app.unmount();
         if (cmd === "__no_targets") {
           console.error("No targets found in workspace.");
           process.exit(1);
-        } else if (cmd === "reset") {
-          deleteCache(root);
-          clearHistory(root);
-          console.log("Cache and history cleared for this workspace.");
-          process.exit(0);
         } else if (cmd === "nuke") {
           nukeAllCaches();
           nukeAllHistory();
           console.log("All nxr caches and history removed.");
-          process.exit(0);
-        } else if (cmd === "sync") {
-          process.stderr.write("  Rescanning workspace...");
-          const fresh = await scanWorkspace(nx);
-          await saveCache(root, fresh);
-          process.stderr.write("\r\x1b[K");
-          console.log(`Synced ${fresh.length} targets.`);
           process.exit(0);
         }
       },
