@@ -1,6 +1,6 @@
 import { join } from "path";
 import { homedir } from "os";
-import { mkdirSync } from "fs";
+import { mkdirSync, rmSync } from "fs";
 import type { NxTarget } from "./types.ts";
 
 const CACHE_DIR = join(homedir(), ".config", "nxr", "cache");
@@ -39,4 +39,12 @@ export async function saveCache(root: string, targets: NxTarget[]): Promise<void
     timestamp: Date.now(),
   };
   await Bun.write(getCachePath(root), JSON.stringify(data, null, 2) + "\n");
+}
+
+export function deleteCache(root: string): void {
+  rmSync(getCachePath(root), { force: true });
+}
+
+export function nukeAllCaches(): void {
+  rmSync(CACHE_DIR, { recursive: true, force: true });
 }

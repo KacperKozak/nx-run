@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { homedir } from "os";
 
@@ -44,4 +44,24 @@ export function saveHistory(root: string, commands: string[]): void {
   const merged = [...commands, ...existing.filter((c) => !commands.includes(c))];
   data[root] = merged.slice(0, MAX_HISTORY);
   writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2) + "\n");
+}
+
+export function pruneHistory(root: string, validCommands: Set<string>): void {
+  const data = readHistoryFile();
+  const existing = data[root] ?? [];
+  const pruned = existing.filter((cmd) => validCommands.has(cmd));
+  if (pruned.length !== existing.length) {
+    data[root] = pruned;
+    writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2) + "\n");
+  }
+}
+
+export function clearHistory(root: string): void {
+  const data = readHistoryFile();
+  delete data[root];
+  writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2) + "\n");
+}
+
+export function nukeAllHistory(): void {
+  rmSync(HISTORY_FILE, { force: true });
 }

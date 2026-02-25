@@ -3,10 +3,18 @@ import React from "react";
 import { render } from "ink";
 import { scanWorkspace } from "./scan.ts";
 import { createSearcher } from "./search.ts";
-import { getWorkspaceRoot, getNxBin, loadHistory, saveHistory } from "./history.ts";
-import { loadCache, saveCache } from "./cache.ts";
+import { getWorkspaceRoot, getNxBin, loadHistory, saveHistory, pruneHistory, clearHistory, nukeAllHistory } from "./history.ts";
+import { loadCache, saveCache, deleteCache, nukeAllCaches } from "./cache.ts";
 import { runTasks } from "./run.ts";
 import App from "./app.tsx";
+
+// Handle --nuke before anything else
+if (process.argv.includes("--nuke")) {
+  nukeAllCaches();
+  nukeAllHistory();
+  console.log("All nxr caches and history removed.");
+  process.exit(0);
+}
 
 const root = getWorkspaceRoot();
 if (!root) {
@@ -26,6 +34,8 @@ if (cached) {
   // Background rescan — fire and forget, result used on next invocation
   syncPromise = scanWorkspace(nx).then((fresh) => {
     saveCache(root, fresh);
+    const validCommands = new Set(fresh.map((t) => t.command));
+    pruneHistory(root, validCommands);
   });
 } else {
   process.stderr.write("  Scanning NX workspace...");
@@ -53,6 +63,27 @@ const selected = await new Promise<string[]>((resolve) => {
       onSelect: (commands: string[]) => {
         app.unmount();
         resolve(commands);
+      },
+      onCommand: async (cmd: string) => {
+        app.unmount();
+        if (cmd === "reset") {
+          deleteCache(root);
+          clearHistory(root);
+          console.log("Cache and history cleared for this workspace.");
+          process.exit(0);
+        } else if (cmd === "nuke") {
+          nukeAllCaches();
+          nukeAllHistory();
+          console.log("All nxr caches and history removed.");
+          process.exit(0);
+        } else if (cmd === "sync") {
+          process.stderr.write("  Rescanning workspace...");
+          const fresh = await scanWorkspace(nx);
+          await saveCache(root, fresh);
+          process.stderr.write("\r\x1b[K");
+          console.log(`Synced ${fresh.length} targets.`);
+          process.exit(0);
+        }
       },
     }),
   );
