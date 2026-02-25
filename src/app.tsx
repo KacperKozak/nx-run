@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 import TextInput from "ink-text-input";
 import type { NxTarget } from "./types.ts";
@@ -10,21 +10,20 @@ interface AppProps {
   history: string[];
   searcher: (term: string) => NxTarget[];
   onSelect: (commands: string[]) => void;
+  syncPromise?: Promise<void> | null;
 }
 
-export default function App({ targets, history, searcher, onSelect }: AppProps) {
+export default function App({ targets, history, searcher, onSelect, syncPromise }: AppProps) {
   const { exit } = useApp();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
   const [queue, setQueue] = useState<NxTarget[]>([]);
-  const [mode, setMode] = useState<"history" | "search">(
-    history.length > 0 ? "history" : "search",
-  );
+  const [isSyncing, setIsSyncing] = useState(!!syncPromise);
 
-  const results = useMemo(() => {
-    if (mode === "history") return [];
-    return searcher(query).slice(0, MAX_VISIBLE);
-  }, [query, mode, searcher]);
+  useEffect(() => {
+    if (!syncPromise) return;
+    syncPromise.then(() => setIsSyncing(false), () => setIsSyncing(false));
+  }, [syncPromise]);
 
   const historyTargets = useMemo(() => {
     return history
@@ -40,7 +39,14 @@ export default function App({ targets, history, searcher, onSelect }: AppProps) 
       .filter(Boolean) as NxTarget[];
   }, [history, targets]);
 
-  const activeList = mode === "history" ? historyTargets : results;
+  const isSearching = query.trim().length > 0;
+
+  const results = useMemo(() => {
+    if (!isSearching) return [];
+    return searcher(query).slice(0, MAX_VISIBLE);
+  }, [query, isSearching, searcher]);
+
+  const activeList = isSearching ? results : historyTargets;
 
   useInput((input, key) => {
     if (key.escape || (input === "c" && key.ctrl)) {
@@ -50,12 +56,14 @@ export default function App({ targets, history, searcher, onSelect }: AppProps) 
 
     if (key.tab) {
       const item = activeList[cursor];
-      if (item && !queue.some((q) => q.command === item.command)) {
-        setQueue((prev) => [...prev, item]);
+      if (item) {
+        const inQueue = queue.some((q) => q.command === item.command);
+        if (inQueue) {
+          setQueue((prev) => prev.filter((q) => q.command !== item.command));
+        } else {
+          setQueue((prev) => [...prev, item]);
+        }
       }
-      setQuery("");
-      setCursor(0);
-      if (mode === "history") setMode("search");
       return;
     }
 
@@ -78,6 +86,13 @@ export default function App({ targets, history, searcher, onSelect }: AppProps) 
       return;
     }
 
+    // Ctrl+Backspace / Cmd+Backspace: clear search input
+    if (key.backspace && (key.ctrl || key.meta)) {
+      setQuery("");
+      setCursor(0);
+      return;
+    }
+
     if (key.backspace || key.delete) {
       if (query === "" && queue.length > 0) {
         setQueue((prev) => prev.slice(0, -1));
@@ -87,57 +102,49 @@ export default function App({ targets, history, searcher, onSelect }: AppProps) 
   });
 
   const handleQueryChange = (value: string) => {
-    if (mode === "history" && value.length > 0) {
-      setMode("search");
-    }
     setQuery(value);
     setCursor(0);
   };
 
+  const showList = activeList.length > 0;
+  const showEmptyHint = !isSearching && historyTargets.length === 0;
+
   return (
     <Box flexDirection="column">
-      {mode === "history" && historyTargets.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text dimColor>  Recent (Tab to select, Enter to run):</Text>
-          {historyTargets.map((item, i) => (
-            <Text key={item.command}>
-              {i === cursor ? (
-                <Text color="cyan">  ❯ {item.command}</Text>
-              ) : (
-                <Text>    {item.command}</Text>
-              )}
-            </Text>
-          ))}
-          <Text dimColor>{"\n  " + "─".repeat(30)}</Text>
+      <Box>
+        <Text>  </Text>
+        <Box flexGrow={1}>
+          <TextInput value={query} onChange={handleQueryChange} />
         </Box>
+        {isSyncing && <Text dimColor>syncing...</Text>}
+      </Box>
+      <Text dimColor>  {"─".repeat(40)}</Text>
+
+      {showEmptyHint && (
+        <Text dimColor>  No recent runs yet</Text>
       )}
 
-      <Box>
-        <Text>  Search: </Text>
-        <TextInput value={query} onChange={handleQueryChange} />
-      </Box>
-
-      {mode === "search" && results.length > 0 && (
-        <Box flexDirection="column" marginTop={1}>
+      {showList && (
+        <Box flexDirection="column">
           {(() => {
-            const pad = Math.max(...results.map((r) => r.project.length)) + 2;
-            return results.map((item, i) => {
-            const isSelected = i === cursor;
-            const inQueue = queue.some((q) => q.command === item.command);
-            return (
-              <Text key={item.command}>
-                {isSelected ? (
-                  <Text color="cyan">  ❯ </Text>
-                ) : (
-                  <Text>    </Text>
-                )}
-                <Text color={isSelected ? "cyan" : undefined} dimColor={inQueue}>
-                  {item.project.padEnd(pad)}{item.target}
+            const pad = Math.max(...activeList.map((r) => r.project.length)) + 2;
+            return activeList.map((item, i) => {
+              const isSelected = i === cursor;
+              const inQueue = queue.some((q) => q.command === item.command);
+              return (
+                <Text key={item.command}>
+                  {isSelected ? (
+                    <Text color="cyan">  ❯ </Text>
+                  ) : (
+                    <Text>    </Text>
+                  )}
+                  <Text color={isSelected ? "cyan" : undefined} dimColor={inQueue}>
+                    {item.project.padEnd(pad)}{item.target}
+                  </Text>
+                  {inQueue && <Text color="yellow"> ✓</Text>}
                 </Text>
-                {inQueue && <Text color="yellow"> ✓</Text>}
-              </Text>
-            );
-          });
+              );
+            });
           })()}
         </Box>
       )}

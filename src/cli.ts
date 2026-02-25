@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 import React from "react";
-import { render, Text, Box } from "ink";
+import { render } from "ink";
 import { scanWorkspace } from "./scan.ts";
 import { createSearcher } from "./search.ts";
 import { getWorkspaceRoot, getNxBin, loadHistory, saveHistory } from "./history.ts";
+import { loadCache, saveCache } from "./cache.ts";
 import { runTasks } from "./run.ts";
 import App from "./app.tsx";
 
@@ -15,17 +16,23 @@ if (!root) {
 
 const nx = getNxBin(root);
 
-// Show scanning message
-const spinner = render(
-  React.createElement(
-    Box,
-    null,
-    React.createElement(Text, { dimColor: true }, "  Scanning NX workspace..."),
-  ),
-);
+let targets;
+let syncPromise: Promise<void> | null = null;
 
-const targets = await scanWorkspace(nx);
-spinner.unmount();
+const cached = await loadCache(root);
+
+if (cached) {
+  targets = cached;
+  // Background rescan — fire and forget, result used on next invocation
+  syncPromise = scanWorkspace(nx).then((fresh) => {
+    saveCache(root, fresh);
+  });
+} else {
+  process.stderr.write("  Scanning NX workspace...");
+  targets = await scanWorkspace(nx);
+  process.stderr.write("\r\x1b[K");
+  await saveCache(root, targets);
+}
 
 if (targets.length === 0) {
   console.error("No targets found in workspace.");
@@ -42,6 +49,7 @@ const selected = await new Promise<string[]>((resolve) => {
       targets,
       history,
       searcher,
+      syncPromise,
       onSelect: (commands: string[]) => {
         app.unmount();
         resolve(commands);
