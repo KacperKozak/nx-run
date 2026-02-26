@@ -1,6 +1,6 @@
 {
   "name": "nx-run",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Fuzzy-search Nx task runner",
   "license": "MIT",
   "repository": {
@@ -30,10 +30,10 @@
     "typescript": "^5"
   },
   "optionalDependencies": {
-    "@nx-run/darwin-arm64": "0.0.0",
-    "@nx-run/darwin-x64": "0.0.0",
-    "@nx-run/linux-x64": "0.0.0",
-    "@nx-run/linux-arm64": "0.0.0",
-    "@nx-run/win32-x64": "0.0.0"
+    "@nx-run/darwin-arm64": "1.0.0",
+    "@nx-run/darwin-x64": "1.0.0",
+    "@nx-run/linux-x64": "1.0.0",
+    "@nx-run/linux-arm64": "1.0.0",
+    "@nx-run/win32-x64": "1.0.0"
   }
 }
