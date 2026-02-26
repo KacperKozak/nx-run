@@ -5,7 +5,8 @@ import { scanWorkspace } from "./scan.ts";
 import { createSearcher } from "./search.ts";
 import { getWorkspaceRoot, getNxBin, loadHistory, saveHistory, pruneHistory, clearHistory, nukeAllHistory } from "./history.ts";
 import { loadCache, saveCache, deleteCache, nukeAllCaches } from "./cache.ts";
-import { runTasks } from "./run.ts";
+import { runTasks, formatRunLabel } from "./run.ts";
+
 import App from "./app.tsx";
 import type { NxTarget } from "./types.ts";
 
@@ -170,6 +171,6 @@ if (selected.length === 0) {
 
 saveHistory(root, selected);
 
-console.log(`\nRunning: ${selected.join(", ")}\n`);
+console.log(`\n$ ${formatRunLabel(selected)}\n`);
 const exitCode = await runTasks(nx, selected);
 process.exit(exitCode);
