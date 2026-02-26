@@ -2,32 +2,33 @@
 
 Fast, fuzzy target runner for [Nx](https://nx.dev) workspaces.
 
-Type a few characters, pick one or many targets, and run them — no more memorizing long `nx run` commands.
+Type a few characters, pick one or many targets, and run them.
+No more memorizing long `nx run @my/components:build:package` commands.
 
 ## Install
 
 ```sh
 npm i -g nx-run
 # or
-yarn global add nx-run
-# or
 pnpm add -g nx-run
 # or
 bun add -g nx-run
+# or
+yarn global add nx-run
 ```
 
 ## Usage
 
 Run `nxr` anywhere inside an Nx workspace:
 
-```
-nxr
+```sh
+$ nxr
 ```
 
-```
+```sh
   app build█
   ──────────────────────────────────────
-  > @my/app          build
+  > @my/app           build
     @my/dashboard     build
     @my/app           lint
     @my/app           test
@@ -39,10 +40,10 @@ nxr
 
 Queue multiple targets with `Tab`, then run them all with `Enter`:
 
-```
+```sh
   format█
   ──────────────────────────────────────
-  > @my/app           format  ✓
+  > @my/app            format  ✓
     @my/dashboard      format  ✓
     @my/ui-button      format
     @my/logger         format
