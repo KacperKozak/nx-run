@@ -7,21 +7,21 @@ function t(project: string, target: string): NxTarget {
 }
 
 const targets: NxTarget[] = [
-  t("@deel-frontend/app", "build"),
-  t("@deel-frontend/app", "serve"),
-  t("@deel-frontend/app", "format"),
-  t("@deel-frontend/app", "lint"),
-  t("@deel-frontend/app", "test"),
-  t("@deel-frontend/components-job-information-update", "format"),
-  t("@deel-frontend/components-job-information-update", "ci"),
-  t("@deel-frontend/scene-equity-grant-information", "format"),
-  t("@deel-frontend/scene-equity-grant-information", "ci"),
-  t("@deel-frontend/other-app", "build"),
-  t("@deel-frontend/other-app", "format"),
-  t("@deel-frontend/components-eor-employment-verification-letter", "format"),
-  t("@deel-frontend/components-eor-employment-verification-letter", "ci"),
-  t("@deel-frontend/vite-plugin-publish-bundle-metrics", "format"),
-  t("@deel-frontend/vite-plugin-publish-bundle-metrics", "ci"),
+  t("@my/app", "build"),
+  t("@my/app", "serve"),
+  t("@my/app", "format"),
+  t("@my/app", "lint"),
+  t("@my/app", "test"),
+  t("@my/ui-button", "format"),
+  t("@my/ui-button", "ci"),
+  t("@my/logger", "format"),
+  t("@my/logger", "ci"),
+  t("@my/dashboard", "build"),
+  t("@my/dashboard", "format"),
+  t("@my/icons", "format"),
+  t("@my/icons", "ci"),
+  t("@my/vite-svg", "format"),
+  t("@my/vite-svg", "ci"),
 ];
 
 const search = createSearcher(targets);
@@ -35,40 +35,38 @@ describe("search", () => {
   test("single token matches project name", () => {
     const results = search("app");
     expect(results.length).toBeGreaterThan(0);
-    // app projects should rank first
     expect(results[0]!.project).toContain("app");
   });
 
   test("single token matches target name — exact target matches rank first", () => {
     const results = search("format");
     expect(results.length).toBeGreaterThan(0);
-    // Exact target matches should come before fuzzy project-only matches
     const firstFew = results.slice(0, 6);
     expect(firstFew.every((r) => r.target === "format")).toBe(true);
   });
 
-  test("'app format' returns @deel-frontend/app:format first", () => {
+  test("'app format' returns @my/app:format first", () => {
     const results = search("app format");
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0]!.command).toBe("@deel-frontend/app:format");
+    expect(results[0]!.command).toBe("@my/app:format");
   });
 
-  test("'app for' returns @deel-frontend/app:format first", () => {
+  test("'app for' returns @my/app:format first", () => {
     const results = search("app for");
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0]!.command).toBe("@deel-frontend/app:format");
+    expect(results[0]!.command).toBe("@my/app:format");
   });
 
-  test("'app build' returns @deel-frontend/app:build first", () => {
+  test("'app build' returns @my/app:build first", () => {
     const results = search("app build");
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0]!.command).toBe("@deel-frontend/app:build");
+    expect(results[0]!.command).toBe("@my/app:build");
   });
 
   test("'app ser' matches app:serve", () => {
     const results = search("app ser");
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0]!.command).toBe("@deel-frontend/app:serve");
+    expect(results[0]!.command).toBe("@my/app:serve");
   });
 
   test("multi-token intersects — both tokens must match", () => {
@@ -78,18 +76,16 @@ describe("search", () => {
     expect(results[0]!.target).toBe("format");
   });
 
-  test("'app format' ranks exact 'app' segment above 'approval'", () => {
+  test("exact segment ranks above prefix match", () => {
     const extended = [
       ...targets,
-      t("@deel-frontend/scene-approval-requests", "format"),
-      t("@deel-frontend/scene-approval-policy", "format"),
-      t("@deel-frontend/components-approvals", "format"),
+      t("@my/apricot", "format"),
+      t("@my/apex-cli", "format"),
     ];
     const s = createSearcher(extended);
     const results = s("app format");
     expect(results.length).toBeGreaterThan(0);
-    // @deel-frontend/app:format must come before any approval-* matches
-    expect(results[0]!.command).toBe("@deel-frontend/app:format");
+    expect(results[0]!.command).toBe("@my/app:format");
   });
 
   test("no results for impossible combo", () => {
