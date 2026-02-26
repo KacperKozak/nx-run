@@ -1,18 +1,39 @@
 {
   "name": "nx-run",
+  "version": "0.0.0",
+  "description": "Fuzzy-search Nx task runner",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kacper-sx/nxr"
+  },
   "type": "module",
   "bin": {
-    "nxr": "src/cli.ts"
+    "nxr": "bin/nxr.js"
+  },
+  "files": [
+    "bin/nxr.js"
+  ],
+  "scripts": {
+    "version": "bun scripts/version.ts",
+    "build": "bun scripts/build.ts",
+    "publish-all": "bun scripts/publish.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "latest",
-    "typescript": "^5"
-  },
-  "dependencies": {
+    "fuse.js": "^7",
     "ink": "^5",
     "ink-text-input": "^6",
     "react": "^18",
-    "fuse.js": "^7"
+    "react-devtools-core": "^7.0.1",
+    "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "@nx-run/darwin-arm64": "0.0.0",
+    "@nx-run/darwin-x64": "0.0.0",
+    "@nx-run/linux-x64": "0.0.0",
+    "@nx-run/linux-arm64": "0.0.0",
+    "@nx-run/win32-x64": "0.0.0"
   }
 }
