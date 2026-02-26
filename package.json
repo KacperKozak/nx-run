@@ -15,10 +15,10 @@
     "bin/nxr.js"
   ],
   "scripts": {
-    "release": "bun run version && bun run build && bun run publish",
-    "version": "bun scripts/version.ts",
+    "release": "bun run bump && bun run build && bun run publish-all",
+    "bump": "bun scripts/version.ts",
     "build": "bun scripts/build.ts",
-    "publish": "bun scripts/publish.ts"
+    "publish-all": "bun scripts/publish.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -23,10 +23,16 @@ function npmPublish(dir: string) {
     cwd: dir,
     stdin: "inherit",
     stdout: "inherit",
-    stderr: "inherit",
+    stderr: "pipe",
   });
 
   if (proc.exitCode !== 0) {
+    const stderr = proc.stderr.toString();
+    if (stderr.includes("cannot publish over the previously published")) {
+      console.log("  ⏭ Already published, skipping.");
+      return;
+    }
+    process.stderr.write(stderr);
     console.error(`Failed to publish ${dir}`);
     process.exit(1);
   }
