@@ -18,13 +18,13 @@ if (process.argv.includes("--nuke")) {
   process.exit(0);
 }
 
-const root = getWorkspaceRoot();
+const root = await getWorkspaceRoot();
 if (!root) {
   console.error("Could not find nx.json in any parent directory.");
   process.exit(1);
 }
 
-const nx = getNxBin(root);
+const nx = await getNxBin(root);
 
 const cached = await loadCache(root);
 const initialTargets: NxTarget[] = cached ?? [];
@@ -34,10 +34,10 @@ let initialScanPromise: Promise<NxTarget[]> | null = null;
 
 if (cached) {
   // Background rescan — update targets when done
-  syncPromise = scanWorkspace(nx).then((fresh) => {
-    saveCache(root, fresh);
+  syncPromise = scanWorkspace(nx).then(async (fresh) => {
+    await saveCache(root, fresh);
     const validCommands = new Set(fresh.map((t) => t.command));
-    pruneHistory(root, validCommands);
+    await pruneHistory(root, validCommands);
     return fresh;
   });
 } else {
@@ -48,7 +48,7 @@ if (cached) {
   });
 }
 
-const history = loadHistory(root);
+const history = await loadHistory(root);
 
 interface AppLoaderProps {
   onSelect: (commands: string[]) => void;
@@ -85,7 +85,7 @@ function AppLoader({ onSelect, onCommand }: AppLoaderProps) {
     syncPromise.then(
       (fresh) => {
         setTargets(fresh);
-        setHistoryState(loadHistory(root!));
+        loadHistory(root!).then(setHistoryState);
         setIsSyncing(false);
       },
       () => setIsSyncing(false),
@@ -95,27 +95,27 @@ function AppLoader({ onSelect, onCommand }: AppLoaderProps) {
   const handleSync = () => {
     setIsSyncing(true);
     scanWorkspace(nx).then(
-      (fresh) => {
-        saveCache(root!, fresh);
+      async (fresh) => {
+        await saveCache(root!, fresh);
         const validCommands = new Set(fresh.map((t) => t.command));
-        pruneHistory(root!, validCommands);
+        await pruneHistory(root!, validCommands);
         setTargets(fresh);
-        setHistoryState(loadHistory(root!));
+        setHistoryState(await loadHistory(root!));
         setIsSyncing(false);
       },
       () => setIsSyncing(false),
     );
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     deleteCache(root!);
-    clearHistory(root!);
+    await clearHistory(root!);
     setTargets([]);
     setHistoryState([]);
     setIsLoading(true);
     scanWorkspace(nx).then(
-      (fresh) => {
-        saveCache(root!, fresh);
+      async (fresh) => {
+        await saveCache(root!, fresh);
         setTargets(fresh);
         setIsLoading(false);
       },
@@ -169,7 +169,7 @@ if (selected.length === 0) {
   process.exit(0);
 }
 
-saveHistory(root, selected);
+await saveHistory(root, selected);
 
 console.log(`\n$ ${formatRunLabel(selected)}\n`);
 const exitCode = await runTasks(nx, selected);

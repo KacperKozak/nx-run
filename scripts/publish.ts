@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { readdirSync, existsSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
@@ -39,14 +39,19 @@ function npmPublish(dir: string) {
 }
 
 // 1. Publish platform packages first
-if (!existsSync(NPM_DIR)) {
+let allEntries: string[];
+try {
+  allEntries = readdirSync(NPM_DIR);
+} catch {
   console.error("npm/ directory not found. Run `bun scripts/build.ts` first.");
   process.exit(1);
 }
-
-const platforms = readdirSync(NPM_DIR).filter((d) =>
-  existsSync(join(NPM_DIR, d, "package.json")),
-);
+const platforms: string[] = [];
+for (const d of allEntries) {
+  if (await Bun.file(join(NPM_DIR, d, "package.json")).exists()) {
+    platforms.push(d);
+  }
+}
 
 console.log(`Publishing ${platforms.length} platform packages...`);
 for (const platform of platforms) {

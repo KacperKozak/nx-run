@@ -1,12 +1,11 @@
 #!/usr/bin/env bun
 
-import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
 const PKG_PATH = join(ROOT, "package.json");
 
-const pkg = JSON.parse(readFileSync(PKG_PATH, "utf-8"));
+const pkg = await Bun.file(PKG_PATH).json();
 console.log(`Current version: ${pkg.version}`);
 
 const version = prompt("New version:")?.trim();
@@ -24,7 +23,7 @@ pkg.version = version;
 for (const key of Object.keys(pkg.optionalDependencies ?? {})) {
   pkg.optionalDependencies[key] = version;
 }
-writeFileSync(PKG_PATH, JSON.stringify(pkg, null, 2) + "\n");
+await Bun.write(PKG_PATH, JSON.stringify(pkg, null, 2) + "\n");
 
 const proc = Bun.spawnSync(
   ["git", "commit", "-am", `v${version}`],

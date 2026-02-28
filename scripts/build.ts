@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import pkg from '../package.json'
 
@@ -72,7 +72,7 @@ for (const target of TARGETS) {
     },
   }
 
-  writeFileSync(join(outDir, 'package.json'), JSON.stringify(platformPkg, null, 2) + '\n')
+  await Bun.write(join(outDir, 'package.json'), JSON.stringify(platformPkg, null, 2) + '\n')
 
   console.log(`  ✓ ${pkgName}@${VERSION} → ${outPath}`)
 }
